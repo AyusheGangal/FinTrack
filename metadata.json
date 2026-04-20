@@ -1,6 +1,6 @@
 {
   "name": "FinTrack Pro",
-  "description": "A comprehensive personal finance manager with multi-account tracking, budget goals, visual analytics, and AI-powered financial advice.",
+  "description": "A secure desktop-ready personal finance manager with automated bank integration via Plaid, budget tracking, and real-time portfolio analytics.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

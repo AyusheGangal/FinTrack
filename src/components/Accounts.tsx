@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, CreditCard, PiggyBank, Briefcase, ChevronRight, MoreVertical, Trash2, Edit2 } from 'lucide-react';
+import { Plus, CreditCard, PiggyBank, Briefcase, ChevronRight, MoreVertical, Trash2, Edit2, ShieldCheck } from 'lucide-react';
 import { useFinanceData } from '../hooks/useFinanceData';
 import { db, auth, handleFirestoreError } from '../lib/firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { Account, AccountType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { PlaidLinkButton } from './PlaidLinkButton';
 
 const ACCOUNT_ICONS: Record<AccountType, React.ReactNode> = {
   checking: <CreditCard className="w-6 h-6" />,
@@ -19,6 +20,33 @@ export default function Accounts() {
   const { accounts, loading } = useFinanceData();
   const [isAdding, setIsAdding] = useState(false);
   const [newAccount, setNewAccount] = useState({ name: '', type: 'checking' as AccountType, balance: 0 });
+  const [plaidSyncStatus, setPlaidSyncStatus] = useState<string | null>(null);
+
+  const handlePlaidSuccess = async (publicToken: string, metadata: any) => {
+    setPlaidSyncStatus('Exchanging tokens...');
+    try {
+      const response = await fetch('/api/plaid/exchange_public_token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ public_token: publicToken }),
+      });
+      
+      if (!response.ok) throw new Error('Token exchange failed');
+      
+      const data = await response.json();
+      setPlaidSyncStatus('Connected! Importing accounts...');
+      
+      // In a real app, you would now use the access_token to fetch real balances
+      // and update your Firestore accounts. For now, we'll just mock the successful connection.
+      
+      setTimeout(() => setPlaidSyncStatus(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setPlaidSyncStatus('Connection failed. Please try again.');
+    }
+  };
 
   const addAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,15 +77,26 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white tracking-tight">Your Portfolio</h3>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 hover:bg-indigo-500 transition shadow-lg shadow-indigo-900/20 uppercase tracking-widest"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Account</span>
-        </button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-white tracking-tight">Your Portfolio</h3>
+          {plaidSyncStatus && (
+            <div className="flex items-center gap-2 mt-1 text-indigo-400 animate-pulse">
+              <ShieldCheck className="w-3 h-3" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">{plaidSyncStatus}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <PlaidLinkButton onSuccess={handlePlaidSuccess} />
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="bg-zinc-800 text-white border border-zinc-700 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 hover:bg-zinc-700 transition uppercase tracking-widest"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Manual Add</span>
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>

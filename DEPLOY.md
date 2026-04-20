@@ -52,4 +52,32 @@ You asked if your data is safe or if you should use it offline. Here is the brea
 | **Backups** | If you lose your phone, your data is safe in the cloud. | If you clear your browser cache, **all your data is gone**. |
 | **Privacy** | Encrypted and protected by Google-grade security rules. | Maximum privacy (no data ever leaves your computer). |
 
-**Our Recommendation**: Stick with the current Firebase setup. It gives you the convenience of access anywhere while maintaining professional-grade security that ensures **no one else** (including the host) can access your numbers.
+## 6. Desktop App Setup (Locally)
+To run this as a native desktop application on your computer:
+1.  **Clone the Repo**:
+    ```bash
+    git clone https://github.com/YOUR_USERNAME/FinTrack.git
+    cd FinTrack
+    ```
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Run in Dev Mode**:
+    ```bash
+    npm run electron:dev
+    ```
+4.  **Build Installer**:
+    ```bash
+    npm run electron:build
+    ```
+
+## 7. Plaid Integration (Automated Banks)
+To enable automated bank syncing:
+1.  Sign up at [Plaid Dashboard](https://dashboard.plaid.com/).
+2.  Get your **Client ID** and **Secret** from the Team Settings.
+3.  Set them in your environment variables (or `.env` file locally):
+    - `PLAID_CLIENT_ID`
+    - `PLAID_SECRET`
+    - `PLAID_ENV=sandbox` (use `development` for real accounts)
+4.  Once configured, click **"Connect Bank via Plaid"** in the Accounts view of your app.
