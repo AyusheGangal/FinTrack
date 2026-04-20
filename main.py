@@ -16,8 +16,28 @@ load_dotenv()
 # --- CONFIG & STATE ---
 PLAID_CLIENT_ID = os.environ.get('PLAID_CLIENT_ID')
 PLAID_SECRET = os.environ.get('PLAID_SECRET')
+PLAID_ENV = os.environ.get('PLAID_ENV', 'sandbox')
 
+# Plaid Configuration
+plaid_host = plaid.Environment.Sandbox
+if PLAID_ENV == 'development':
+    plaid_host = plaid.Environment.Development
+elif PLAID_ENV == 'production':
+    plaid_host = plaid.Environment.Production
+
+configuration = plaid.Configuration(
+    host=plaid_host,
+    api_key={
+        'clientId': PLAID_CLIENT_ID,
+        'secret': PLAID_SECRET,
+    }
+)
+api_client = plaid.ApiClient(configuration)
+client = plaid_api.PlaidApi(api_client)
+
+# App State
 active_view = solara.reactive("dashboard")
+access_tokens = solara.reactive([])
 accounts_data = solara.reactive([
     {"name": "BoA Checking", "type": "Checking", "balance": 12450.50, "bank": "Bank of America", "change": "+2.4%"},
     {"name": "SoFi Savings", "type": "Savings", "balance": 45200.00, "bank": "SoFi", "change": "+0.1%"},
@@ -25,6 +45,61 @@ accounts_data = solara.reactive([
 ])
 
 # --- COMPONENTS ---
+
+@solara.component
+def PlaidLink(on_success_callback):
+    link_token, set_link_token = solara.use_state(None)
+    
+    def fetch_token():
+        if not PLAID_CLIENT_ID or not PLAID_SECRET:
+            print("Plaid Keys missing!")
+            return
+        try:
+            from plaid.model.link_token_create_request import LinkTokenCreateRequest
+            from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
+            from plaid.model.products import Products
+            from plaid.model.country_code import CountryCode
+
+            request = LinkTokenCreateRequest(
+                products=[Products("transactions")],
+                user=LinkTokenCreateRequestUser(client_user_id="user-id"),
+                client_name="Vault",
+                language="en",
+                country_codes=[CountryCode("US")],
+            )
+            response = client.link_token_create(request)
+            set_link_token(response['link_token'])
+        except Exception as e:
+            print(f"Error creating link token: {e}")
+
+    solara.use_effect(fetch_token, [])
+
+    return solara.Div(
+        children=[
+            solara.HTML(tag="script", unsafe_html=f"""
+                (function() {{
+                    const token = '{link_token}';
+                    if (!token) return;
+                    const loadPlaid = () => {{
+                        const handler = Plaid.create({{
+                            token: token,
+                            onSuccess: (pt, md) => {{ 
+                                console.log('Plaid Success', pt); 
+                                // In a local app, you'd send pt back to your Python backend here
+                            }},
+                        }});
+                        handler.open();
+                    }};
+                    if (!window.Plaid) {{
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+                        s.onload = loadPlaid;
+                        document.head.appendChild(s);
+                    }} else {{ loadPlaid(); }}
+                }})();
+            """)
+        ] if link_token else []
+    )
 
 @solara.component
 def Sidebar():
@@ -52,14 +127,23 @@ def Sidebar():
                 bg_color = "rgba(255,255,255,0.05)" if is_active else "transparent"
                 text_color = "white" if is_active else "rgba(255,255,255,0.4)"
                 
-                with solara.Row(style={
-                    "background-color": bg_color, 
-                    "padding": "12px 16px", 
-                    "border-radius": "12px",
-                    "cursor": "pointer",
-                    "transition": "all 0.2s"
-                }, on_click=lambda v=view_id: active_view.set(v)):
-                    solara.Text(label, style={"font-weight": "600", "font-size": "14px", "color": text_color})
+                solara.Button(
+                    label=label,
+                    on_click=lambda v=view_id: active_view.set(v),
+                    text=True,
+                    style={
+                        "background-color": bg_color,
+                        "color": text_color,
+                        "justify-content": "start",
+                        "width": "100%",
+                        "padding": "12px 16px",
+                        "border-radius": "12px",
+                        "font-weight": "600",
+                        "font-size": "14px",
+                        "text-transform": "none",
+                        "letter-spacing": "normal"
+                    }
+                )
 
 @solara.component
 def MetricCard(title, value, subtitle=None, trend=None):
@@ -124,12 +208,17 @@ def DashboardView():
 
 @solara.component
 def AccountsView():
+    show_link, set_show_link = solara.use_state(False)
+    
     with solara.Column(gap="32px", style={"padding": "48px", "width": "100%", "max-width": "1200px"}):
         with solara.Row(justify="space-between", style={"align-items": "end"}):
             with solara.Column(gap="4px"):
                 solara.Text("Portfolio Management", style={"font-size": "32px", "font-weight": "800", "letter-spacing": "-1px"})
                 solara.Text("All linked bank and brokerage accounts", style={"font-size": "14px", "color": "rgba(255,255,255,0.5)"})
-            solara.Button("Connect New Account", color="primary", style={"background": "#6366f1", "padding": "12px 24px", "border-radius": "12px"})
+            solara.Button("Connect via Plaid", on_click=lambda: set_show_link(True), color="primary", style={"background": "#6366f1", "padding": "12px 24px", "border-radius": "12px"})
+
+        if show_link:
+            PlaidLink(lambda: set_show_link(False))
 
         with solara.Row(gap="24px", style={"flex-wrap": "wrap"}):
             for acc in accounts_data.value:
