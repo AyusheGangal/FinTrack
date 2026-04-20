@@ -1,8 +1,6 @@
 solara
 plaid-python
 python-dotenv
-firebase-admin
 pandas
 plotly
-authlib
 requests
