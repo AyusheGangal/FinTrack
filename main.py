@@ -1,20 +1,8 @@
 import solara
-import solara.lab
 import os
 import pandas as pd
 import plotly.express as px
 from dotenv import load_dotenv
-
-# Optional Plaid Imports
-try:
-    import plaid
-    from plaid.api import plaid_api
-    from plaid.model.link_token_create_request import LinkTokenCreateRequest
-    from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-    from plaid.model.products import Products
-    from plaid.model.country_code import CountryCode
-except ImportError:
-    plaid = None
 
 load_dotenv()
 
@@ -29,105 +17,112 @@ accounts_data = solara.reactive([
 # --- COMPONENTS ---
 
 @solara.component
-def MetricTile(title, value, trend, color="#818cf8"):
+def MetricTile(title, value, trend):
     with solara.Column(style={
-        "background": "rgba(255,255,255,0.05)",
+        "background": "#111",
         "padding": "24px",
         "border-radius": "20px",
-        "border": f"1px solid rgba(255,255,255,0.08)",
+        "border": "1px solid #222",
         "flex": "1"
     }):
-        solara.Text(title.upper(), style={"font-size": "10px", "color": "rgba(255,255,255,0.4)", "font-weight": "800", "letter-spacing": "2px"})
+        solara.Text(title.upper(), style={"font-size": "10px", "color": "#666", "font-weight": "800", "letter-spacing": "2px"})
         solara.Text(value, style={"font-size": "36px", "font-weight": "900", "margin": "8px 0", "color": "white"})
         solara.Text(trend, style={"font-size": "12px", "color": "#4ade80", "font-weight": "bold"})
 
 @solara.component
-def Dashboard():
+def Sidebar():
+    with solara.Column(style={
+        "width": "280px", 
+        "background-color": "#080808", 
+        "height": "100vh", 
+        "padding": "40px 24px", 
+        "border-right": "1px solid #111"
+    }):
+        solara.Text("VAULT", style={"font-size": "24px", "font-weight": "900", "color": "#6366f1", "font-style": "italic", "margin-bottom": "40px"})
+        
+        with solara.Column(gap="12px"):
+            views = [("dashboard", "Dashboard"), ("accounts", "Accounts")]
+            for view_id, label in views:
+                is_active = active_view.value == view_id
+                solara.Button(
+                    label=label,
+                    on_click=lambda v=view_id: active_view.set(v),
+                    text=True,
+                    style={
+                        "color": "white" if is_active else "#555",
+                        "justify-content": "start",
+                        "width": "100%",
+                        "font-weight": "700",
+                        "background-color": "#111" if is_active else "transparent",
+                        "border-radius": "10px"
+                    }
+                )
+
+@solara.component
+def DashboardView():
     df = pd.DataFrame(accounts_data.value)
     total = df['balance'].sum()
     
-    with solara.Column(gap="32px", style={"width": "100%", "max-width": "1200px", "margin": "0 auto"}):
+    with solara.Column(gap="32px", style={"width": "100%", "padding": "40px"}):
         # Header
-        with solara.Row(justify="space-between", style={"align-items": "center"}):
-            with solara.Column():
-                solara.Text("VAULT OVERVIEW", style={"font-size": "12px", "color": "#818cf8", "font-weight": "900", "letter-spacing": "3px"})
-                solara.Text("Net Worth Dashboard", style={"font-size": "32px", "font-weight": "900", "color": "white", "letter-spacing": "-1px"})
-            solara.Button("Force Sync", color="primary", outlined=True)
+        with solara.Column():
+            solara.Text("VAULT OVERVIEW", style={"font-size": "12px", "color": "#818cf8", "font-weight": "900", "letter-spacing": "3px"})
+            solara.Text("Net Worth Dashboard", style={"font-size": "42px", "font-weight": "900", "color": "white", "letter-spacing": "-1px"})
 
-        # Quick Stats
+        # Stats Row
         with solara.Row(gap="20px"):
             MetricTile("Global Balance", f"${total:,.2f}", "↑ 4.2% Monthly")
             MetricTile("Assets Linked", str(len(df)), "Live Connection")
-            MetricTile("Est. Yield", "$420.50", "SoFi Savings Optim")
+            MetricTile("Est. Yield", "$420.50", "Passive Income")
 
-        # Visuals & Feed
-        with solara.Row(gap="24px"):
-            # Chart
-            with solara.Column(style={"flex": "2", "background": "rgba(255,255,255,0.02)", "padding": "24px", "border-radius": "24px", "border": "1px solid rgba(255,255,255,0.05)"}):
-                solara.Text("Portfolio Distribution", style={"font-size": "14px", "font-weight": "700", "color": "white", "margin-bottom": "20px"})
+        # Visualization
+        with solara.Row(gap="24px", style={"margin-top": "20px"}):
+            with solara.Column(style={"flex": "1", "background": "#0a0a0a", "padding": "32px", "border-radius": "32px", "border": "1px solid #111"}):
+                solara.Text("Asset Allocation", style={"font-size": "16px", "font-weight": "700", "color": "white", "margin-bottom": "24px"})
                 fig = px.pie(df, values='balance', names='bank', hole=.75, color_discrete_sequence=['#6366f1', '#a855f7', '#ec4899'])
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)', 
                     plot_bgcolor='rgba(0,0,0,0)', 
                     font_color="white", 
                     margin=dict(t=0, b=0, l=0, r=0),
-                    height=300
+                    height=350,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5)
                 )
-                try:
-                    solara.FigurePlotly(fig)
-                except:
-                    solara.Text("Chart loading...", style={"color": "#444"})
-
-            # Insights List
-            with solara.Column(style={"flex": "1", "background": "rgba(255,255,255,0.02)", "padding": "24px", "border-radius": "24px", "border": "1px solid rgba(255,255,255,0.05)"}):
-                solara.Text("Vault Intelligence", style={"font-size": "14px", "font-weight": "700", "color": "white", "margin-bottom": "20px"})
-                for item in ["Optimize SoFi", "Schwab Rebalance", "High Yield Alert"]:
-                    with solara.Row(style={"padding": "12px", "background": "rgba(255,255,255,0.03)", "border-radius": "12px", "margin-bottom": "12px"}):
-                        solara.Text(item, style={"font-size": "12px", "color": "rgba(255,255,255,0.6)", "font-weight": "600"})
+                solara.FigurePlotly(fig)
 
 @solara.component
-def Accounts():
-    with solara.Column(gap="32px", style={"width": "100%", "max-width": "1200px", "margin": "0 auto"}):
+def AccountsView():
+    with solara.Column(gap="32px", style={"width": "100%", "padding": "40px"}):
         with solara.Row(justify="space-between", style={"align-items": "center"}):
             solara.Text("Managed Portfolio", style={"font-size": "32px", "font-weight": "900", "color": "white"})
             solara.Button("Connect via Plaid", color="primary", style={"background": "#6366f1", "padding": "12px 24px", "border-radius": "12px"})
 
         with solara.Row(gap="20px", style={"flex-wrap": "wrap"}):
             for acc in accounts_data.value:
-                with solara.Column(style={"background": "rgba(255,255,255,0.03)", "padding": "24px", "border-radius": "24px", "min-width": "320px", "border": "1px solid rgba(255,255,255,0.05)"}):
+                with solara.Column(style={"background": "#0a0a0a", "padding": "32px", "border-radius": "32px", "min-width": "350px", "border": "1px solid #111"}):
                     solara.Text(acc['bank'].upper(), style={"font-size": "10px", "color": "#818cf8", "font-weight": "900", "letter-spacing": "2px"})
-                    solara.Text(acc['name'], style={"font-size": "20px", "font-weight": "700", "margin": "10px 0", "color": "white"})
-                    solara.Text(f"${acc['balance']:,.2f}", style={"font-size": "28px", "font-weight": "900", "color": "white"})
+                    solara.Text(acc['name'], style={"font-size": "24px", "font-weight": "700", "margin": "12px 0", "color": "white"})
+                    solara.Text(f"${acc['balance']:,.2f}", style={"font-size": "36px", "font-weight": "900", "color": "white"})
 
 @solara.component
 def Page():
-    # Force the app into Dark Mode
-    solara.lab.Theme(
-        dark=True,
-        toggle_button=False,
-    )
-    
+    # Global aggressive dark styles to override any default light theme
     solara.Style("""
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        
-        #solara-main { background-color: #020202 !important; min-height: 100vh; }
-        .v-application { background: #020202 !important; font-family: 'Inter', sans-serif !important; }
-        .v-navigation-drawer { background-color: #080808 !important; border-right: 1px solid #111 !important; }
-        .v-btn { text-transform: none !important; letter-spacing: 0 !important; font-weight: 700 !important; }
+        html, body, #solara-main { background-color: #050505 !important; color: white !important; margin: 0; padding: 0; }
+        * { font-family: 'Inter', sans-serif !important; }
+        .v-application { background: #050505 !important; }
+        .v-main { background: #050505 !important; }
+        button { text-transform: none !important; letter-spacing: 0 !important; }
     """)
 
-    with solara.lab.NavLayout():
-        with solara.lab.Sidebar():
-            with solara.Column(padding="32px"):
-                solara.Text("VAULT", style={"font-size": "24px", "font-weight": "900", "color": "#6366f1", "font-style": "italic"})
-                with solara.Column(gap="10px", style={"margin-top": "40px"}):
-                    solara.Button("Dashboard", on_click=lambda: active_view.set("dashboard"), text=True, style={"justify-content": "start", "color": "white" if active_view.value == "dashboard" else "#666"})
-                    solara.Button("Accounts", on_click=lambda: active_view.set("accounts"), text=True, style={"justify-content": "start", "color": "white" if active_view.value == "accounts" else "#666"})
-
-        with solara.Column(style={"padding": "32px", "min-height": "100vh", "background": "radial-gradient(circle at 50% 0%, #111 0%, #020202 100%)"}):
+    with solara.Row(style={"min-height": "100vh"}):
+        Sidebar()
+        with solara.Column(style={"flex": "1", "background": "radial-gradient(circle at 50% 0%, #111 0%, #050505 100%)", "height": "100vh", "overflow-y": "auto"}):
             if active_view.value == "dashboard":
-                Dashboard()
+                DashboardView()
             else:
-                Accounts()
+                AccountsView()
 
 app = Page()
