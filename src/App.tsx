@@ -18,7 +18,8 @@ import {
   PiggyBank,
   Briefcase,
   Layers,
-  RefreshCw
+  RefreshCw,
+  Shield
 } from 'lucide-react';
 import { useAuth, signIn, signOut } from './lib/firebase';
 import Dashboard from './components/Dashboard';
@@ -112,8 +113,8 @@ export default function App() {
             <NavItem 
               active={activeView === 'advisor'} 
               onClick={() => setActiveView('advisor')}
-              icon={<Sparkles />} 
-              label="AI Advisor" 
+              icon={<Shield />} 
+              label="Vault Guide" 
               accent
             />
           </nav>
@@ -182,7 +183,7 @@ export default function App() {
         <MobileNavItem active={activeView === 'accounts'} onClick={() => setActiveView('accounts')} icon={<CreditCard className="w-6 h-6" />} />
         <MobileNavItem active={activeView === 'transactions'} onClick={() => setActiveView('transactions')} icon={<RefreshCw className="w-6 h-6" />} />
         <MobileNavItem active={activeView === 'budgets'} onClick={() => setActiveView('budgets')} icon={<Target className="w-6 h-6" />} />
-        <MobileNavItem active={activeView === 'advisor'} onClick={() => setActiveView('advisor')} icon={<Sparkles className="w-6 h-6 text-indigo-400" />} />
+        <MobileNavItem active={activeView === 'advisor'} onClick={() => setActiveView('advisor')} icon={<Shield className="w-6 h-6 text-emerald-400" />} />
       </div>
     </div>
   );

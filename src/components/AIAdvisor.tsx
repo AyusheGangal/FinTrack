@@ -1,63 +1,52 @@
 import { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Sparkles, Send, Bot, User, RefreshCw, AlertCircle } from 'lucide-react';
+import { Sparkles, FileDown, Bot, User, CheckCircle2, Shield, Info } from 'lucide-react';
 import { useFinanceData } from '../hooks/useFinanceData';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import Markdown from 'react-markdown';
+import { generateFinancialSummary } from '../lib/pdfExport';
 
 export default function AIAdvisor() {
-  const { accounts, transactions, budgets } = useFinanceData();
+  const { accounts, transactions, budgets, reminders } = useFinanceData();
   const [messages, setMessages] = useState<{ role: 'user' | 'model', content: string }[]>([
-    { role: 'model', content: "Hello! I'm your Vault AI Assistant. I've analyzed your portfolio. How can I help you optimize your assets today?" }
+    { 
+      role: 'model', 
+      content: "Hello! I'm your Personal Finance Guide. To maintain your privacy and eliminate API costs, I've transitioned to a local processing mode.\n\nI can generate a comprehensive **Financial Summary PDF** for you. You can provide this file to other AI agents (like Gemini, ChatGPT, or Claude) to get personalized advice while keeping your data under your control." 
+    }
   ]);
-  const [inputText, setInputText] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const getFinancialContext = () => {
-    const context = `
-      Current Financial Data:
-      Accounts: ${accounts.map(a => `${a.name} (${a.type}): $${a.balance}`).join(', ')}
-      Budgets: ${budgets.map(b => `${b.category}: $${b.limit}`).join(', ')}
-      Recent Transactions (last 10): ${transactions.slice(0, 10).map(t => `${t.date}: ${t.description} - ${t.type === 'inflow' ? '+' : '-'}$${t.amount} (${t.category})`).join('; ')}
-    `;
-    return context;
-  };
-
-  const sendMessage = async () => {
-    if (!inputText.trim() || isTyping) return;
-
-    const userMessage = inputText;
-    setInputText('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-    setIsTyping(true);
-
+  const handleExport = () => {
+    setIsExporting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const context = getFinancialContext();
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: [
-          { role: 'user', parts: [{ text: `System Instruction: You are a professional financial advisor. Use the user's data to provide specific, actionable advice. Be encouraging but realistic.\n\nContext: ${context}\n\nUser Question: ${userMessage}` }] }
-        ],
-        config: {
-          temperature: 0.7,
-        }
-      });
-
-      const aiResponse = response.text || "I'm sorry, I couldn't process that request.";
-      setMessages(prev => [...prev, { role: 'model', content: aiResponse }]);
+      generateFinancialSummary(accounts, transactions, budgets, reminders);
+      setMessages(prev => [...prev, { 
+        role: 'model', 
+        content: "✅ **Financial Summary Generated!**\n\nYour PDF includes:\n- Full Portfolio breakdown\n- Budget utilization rates\n- Recent transaction ledger\n- Upcoming payment reminders\n\nYou can now upload this to any AI assistant to ask questions like: *'Based on this PDF, what are 3 ways I can save $500 next month?'*" 
+      }]);
     } catch (error) {
       console.error(error);
-      setMessages(prev => [...prev, { role: 'model', content: "I encountered an error while analyzing your data. Please check your connection and try again." }]);
+      setMessages(prev => [...prev, { role: 'model', content: "❌ Failed to generate PDF. Please ensure you have data in your accounts and transactions." }]);
     } finally {
-      setIsTyping(false);
+      setIsExporting(false);
     }
+  };
+
+  const getLocalAdvice = (topic: string) => {
+    let content = "";
+    if (topic === "savings") {
+      const totalBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
+      content = `### Local Savings Insights\n\n- **Current Liquidity:** $${totalBalance.toLocaleString()}\n- **Rule of Thumb:** Try to keep 3-6 months of expenses in a high-yield savings account.\n- **Optimization:** You currently have ${accounts.length} active accounts. Consolidating small balances might reduce fee overhead.`;
+    } else if (topic === "budget") {
+      const overBudgets = budgets.filter(b => (transactions.filter(t => t.category === b.category && t.type === 'outflow').reduce((a, c) => a + c.amount, 0)) > b.limit);
+      content = `### Budget Audit\n\n- **Status:** ${overBudgets.length > 0 ? `Alert: ${overBudgets.length} categories are exceeding targets.` : "Great job! All categories are within limits."}\n- **Advice:** For categories exceeding limits, review the 'History' tab to find non-essential recurring subscriptions.`;
+    }
+
+    setMessages(prev => [...prev, { role: 'model', content }]);
   };
 
   return (
@@ -65,16 +54,19 @@ export default function AIAdvisor() {
       {/* Header */}
       <div className="bg-white/5 p-6 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 glass bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20">
-            <Sparkles className="w-6 h-6" />
+          <div className="w-12 h-12 glass bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20">
+            <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-white tracking-tight italic text-lg uppercase">Vault Advisor</h3>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Active Analysis Engine</p>
+            <h3 className="font-bold text-white tracking-tight italic text-lg uppercase">Financial Guide</h3>
+            <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Privacy-First Mode Active</p>
           </div>
         </div>
         <div className="hidden sm:block">
-           <span className="text-[10px] bg-white/5 px-4 py-1.5 rounded-full border border-white/10 font-bold text-slate-400 uppercase tracking-widest">Portfolio Context Active</span>
+           <span className="text-[10px] bg-white/10 px-4 py-1.5 rounded-full border border-white/10 font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+             Zero API Costs
+           </span>
         </div>
       </div>
 
@@ -89,7 +81,7 @@ export default function AIAdvisor() {
           >
             <div className={`flex max-w-[85%] space-x-4 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
               <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center border shadow-lg ${
-                msg.role === 'model' ? 'glass bg-indigo-500/20 border-indigo-500/30 text-indigo-400' : 'glass bg-white/10 border-white/20 text-slate-300'
+                msg.role === 'model' ? 'glass bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'glass bg-white/10 border-white/20 text-slate-300'
               }`}>
                 {msg.role === 'model' ? <Bot size={22} /> : <User size={22} />}
               </div>
@@ -105,59 +97,54 @@ export default function AIAdvisor() {
             </div>
           </motion.div>
         ))}
-        {isTyping && (
-          <div className="flex justify-start">
-            <div className="flex space-x-4 items-center">
-               <div className="w-10 h-10 rounded-xl glass bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center">
-                 <Bot size={22} />
-               </div>
-               <div className="flex space-x-1.5">
-                 <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
-                 <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
-                 <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
-               </div>
-            </div>
-          </div>
-        )}
         <div ref={scrollRef} />
       </div>
 
-      {/* Input Area */}
+      {/* Action Area */}
       <div className="p-6 bg-white/5 border-t border-white/5">
-        <div className="flex items-center space-x-3 mb-5 overflow-x-auto pb-2 no-scrollbar">
-           <QuickAction label="Risk Profile" onClick={() => setInputText("What's the risk profile of my recent activity?")} />
-           <QuickAction label="Growth Strategy" onClick={() => setInputText("How can I improve my overall asset growth?")} />
-           <QuickAction label="Spend Analysis" onClick={() => setInputText("Analyze my spending for potential leaks.")} />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+           <button 
+             onClick={() => getLocalAdvice('savings')}
+             className="glass bg-white/5 p-4 rounded-2xl border border-white/10 hover:bg-white/10 transition-all text-left"
+           >
+             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-2">
+               <Info size={16} />
+             </div>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Local Analysis</p>
+             <p className="text-xs font-bold text-white tracking-tight">Savings Insights</p>
+           </button>
+           <button 
+             onClick={() => getLocalAdvice('budget')}
+             className="glass bg-white/5 p-4 rounded-2xl border border-white/10 hover:bg-white/10 transition-all text-left"
+           >
+             <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-2">
+               <Sparkles size={16} />
+             </div>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Local Analysis</p>
+             <p className="text-xs font-bold text-white tracking-tight">Budget Audit</p>
+           </button>
+           <button 
+             onClick={handleExport}
+             disabled={isExporting}
+             className="glass bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30 hover:bg-indigo-600/30 transition-all text-left group"
+           >
+             <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300 mb-2 group-hover:scale-110 transition-transform">
+               <FileDown size={16} />
+             </div>
+             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Export Data</p>
+             <p className="text-xs font-bold text-white tracking-tight">Generate Summary PDF</p>
+           </button>
         </div>
-        <div className="flex items-center space-x-3">
-          <input 
-            type="text" 
-            placeholder="Query your portfolio insights..." 
-            value={inputText}
-            onChange={e => setInputText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && sendMessage()}
-            className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4.5 text-sm text-white focus:ring-1 focus:ring-indigo-500/40 focus:outline-none placeholder:text-slate-600 font-medium"
-          />
-          <button 
-            onClick={sendMessage}
-            disabled={isTyping}
-            className="w-16 h-16 bg-white text-indigo-900 rounded-2xl flex items-center justify-center hover:bg-slate-100 transition shadow-2xl active:scale-95 disabled:opacity-50"
-          >
-            <Send className="w-7 h-7" />
-          </button>
+        
+        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-start space-x-3">
+           <div className="mt-0.5 text-emerald-400">
+             <Info size={16} />
+           </div>
+           <p className="text-[10px] leading-relaxed text-slate-400 font-medium">
+             This mode runs entirely on your device. No financial data leaves this browser session, and no AI API costs are incurred. The PDF export is optimized for use with Large Language Models.
+           </p>
         </div>
       </div>
     </div>
-  );
-}
-
-function QuickAction({ label, onClick }: { label: string, onClick: () => void }) {
-  return (
-    <button 
-      onClick={onClick}
-      className="text-[10px] bg-white/5 border border-white/10 text-slate-400 px-4 py-2 rounded-xl hover:bg-white/10 hover:text-white transition-all font-bold uppercase tracking-widest whitespace-nowrap"
-    >
-      {label}
-    </button>
   );
 }

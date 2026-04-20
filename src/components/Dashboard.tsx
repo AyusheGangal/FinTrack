@@ -1,11 +1,16 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell, PieChart, Pie } from 'recharts';
-import { ArrowUpRight, ArrowDownLeft, Wallet, Calculator, CreditCard, ChevronRight, TrendingUp, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Wallet, Calculator, CreditCard, ChevronRight, TrendingUp, AlertCircle, RefreshCw, Sparkles, FileDown, ShieldCheck } from 'lucide-react';
 import { useFinanceData } from '../hooks/useFinanceData';
 import { format } from 'date-fns';
 import { motion } from 'motion/react';
+import { generateFinancialSummary } from '../lib/pdfExport';
 
 export default function Dashboard() {
   const { accounts, transactions, budgets, reminders, loading } = useFinanceData();
+
+  const handleExport = () => {
+    generateFinancialSummary(accounts, transactions, budgets, reminders);
+  };
 
   const totalBalance = accounts.reduce((acc, curr) => acc + curr.balance, 0);
   const monthlyInflow = transactions
@@ -39,6 +44,15 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end mb-4">
+        <button 
+          onClick={handleExport}
+          className="glass bg-white/5 border border-white/10 px-6 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center space-x-2 tracking-widest uppercase hover:bg-white/10"
+        >
+          <FileDown className="w-4 h-4" />
+          <span>Export Summary PDF</span>
+        </button>
+      </div>
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
@@ -201,16 +215,19 @@ export default function Dashboard() {
 
           <div className="glass-indigo p-6 rounded-3xl text-white relative overflow-hidden ring-1 ring-indigo-500/30">
              <div className="relative z-10">
-               <h4 className="text-[10px] uppercase font-bold tracking-widest text-indigo-300 mb-2">Portfolio Strategy</h4>
+               <h4 className="text-[10px] uppercase font-bold tracking-widest text-indigo-300 mb-2">Guide Status</h4>
                <p className="text-sm font-medium leading-relaxed text-indigo-50">
-                 Market volatility is up 4%. Highlighting savings buffer in <span className="text-white font-bold italic">$3,200</span> range recommended.
+                 Privacy-First mode engaged. No external data leakage. Optimized for <span className="text-white font-bold italic">Offline Analysis</span>.
                </p>
-               <button className="mt-5 bg-white text-indigo-600 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 hover:bg-indigo-50 transition-colors shadow-lg shadow-indigo-900/40">
-                 <span>Vault AI</span>
-                 <Sparkles className="w-3.5 h-3.5" />
+               <button 
+                 onClick={handleExport}
+                 className="mt-5 bg-white text-indigo-600 px-5 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 hover:bg-indigo-50 transition-colors shadow-lg shadow-indigo-900/40"
+               >
+                 <span>Download Summary</span>
+                 <FileDown className="w-3.5 h-3.5" />
                </button>
              </div>
-             <Sparkles className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 blur-sm" />
+             <ShieldCheck className="absolute -bottom-6 -right-6 w-32 h-32 opacity-10 blur-sm" />
           </div>
         </div>
       </div>
