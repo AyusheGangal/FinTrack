@@ -15,18 +15,41 @@ This application has been converted to a static React app, which can be hosted f
 
 ## 2. Configure GitHub Pages
 1. Go to your repository on GitHub.
-2. Click on **Settings** > **Pages**.
-3. Under **Build and deployment** > **Source**, select **GitHub Actions**.
+2. Click on **Settings** (top tab) > **Pages** (left sidebar).
+3. Under **Build and deployment** > **Source**, select **GitHub Actions** from the dropdown menu.
+   - **Note**: You will see several "Suggested Workflows" (like Jekyll or Static HTML). **Do NOT click these**. 
+   - Since I have already added the `.github/workflows/deploy.yml` file to your project, GitHub will automatically detect it once you select the "GitHub Actions" source.
+   - Simply selecting "GitHub Actions" is enough. 
 
 ## 3. Deployment
-The included GitHub Action (`.github/workflows/deploy.yml`) will automatically build and deploy your site every time you push to the `main` branch.
+Once the source is set correctly:
+1. Click the **Actions** tab at the top of your GitHub repository.
+2. You should see a workflow run in progress titled "Deploy to GitHub Pages".
+3. If it failed previously, you can click on it and select **"Re-run all jobs"** now that the source is configured.
 
 ## 4. Firebase Configuration
-Since the app uses Firebase, ensure your Firestore Security Rules are deployed and configured correctly to allow client-side access from your `github.io` domain.
-- Go to the [Firebase Console](https://console.firebase.google.com/).
-- Navigate to **Authentication** > **Settings** > **Authorized Domains**.
-- Add your GitHub Pages domain (e.g., `yourusername.github.io`).
+Since the app uses Firebase, you MUST perform these two steps to make it work and keep it safe:
 
-## Troubleshooting
-- **Routing**: This app uses state-based navigation, so you don't need to worry about 404s on refresh (a common issue with React Router on GitHub Pages).
-- **Base Path**: The `vite.config.ts` is configured with `base: './'` to support both top-level and subfolder deployments.
+### A. Authorize your Domain (Required for Sign-In)
+By default, Firebase prevents unknown websites from using your login system.
+1. Go to the [Firebase Console](https://console.firebase.google.com/).
+2. Select your project.
+3. Go to **Authentication** > **Settings** > **Authorized Domains**.
+4. Click **Add Domain** and enter `yourusername.github.io`.
+
+### B. Security Rules (Data Safety)
+Your app is already protected by strict **Firestore Security Rules**. These rules ensure:
+- Only **YOU** can see your financial data.
+- Even if someone knows your repo URL, they cannot "scrape" or see your transactions without logging into your specific account.
+- Every transaction and account is verified for the correct format before being saved.
+
+## 5. Security & Privacy: Why Firebase?
+You asked if your data is safe or if you should use it offline. Here is the breakdown:
+
+| Feature | Firebase (Current) | Local-Only (Offline) |
+| :--- | :--- | :--- |
+| **Sync** | Syncs across phone, laptop, and tablet automatically. | Data stays only on the device where you typed it. |
+| **Backups** | If you lose your phone, your data is safe in the cloud. | If you clear your browser cache, **all your data is gone**. |
+| **Privacy** | Encrypted and protected by Google-grade security rules. | Maximum privacy (no data ever leaves your computer). |
+
+**Our Recommendation**: Stick with the current Firebase setup. It gives you the convenience of access anywhere while maintaining professional-grade security that ensures **no one else** (including the host) can access your numbers.
