@@ -93,29 +93,29 @@ def PlaidLink(on_success_callback):
 
     solara.use_effect(fetch_token, [])
 
-    script = f"""
-    (function() {{
-        if (!window.Plaid) {{
-            var script = document.createElement('script');
-            script.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
-            script.onload = launch;
-            document.head.appendChild(script);
-        }} else {{
-            launch();
-        }}
-        function launch() {{
-            const handler = Plaid.create({{
-                token: '{link_token}',
-                onSuccess: (public_token, metadata) => {{
-                    console.log('Success!', public_token);
-                }},
-            }});
-            handler.open();
-        }}
-    }})();
-    """ if link_token else ""
-
-    return solara.HTML(tag="span", unsafe_html=f"<script>{script}</script>")
+    return solara.Div(
+        children=[
+            solara.HTML(tag="script", unsafe_html=f"""
+                (function() {{
+                    const token = '{link_token}';
+                    if (!token) return;
+                    const loadPlaid = () => {{
+                        const handler = Plaid.create({{
+                            token: token,
+                            onSuccess: (pt, md) => {{ console.log('Plaid Success'); }},
+                        }});
+                        handler.open();
+                    }};
+                    if (!window.Plaid) {{
+                        const s = document.createElement('script');
+                        s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+                        s.onload = loadPlaid;
+                        document.head.appendChild(s);
+                    }} else {{ loadPlaid(); }}
+                }})();
+            """)
+        ] if link_token else []
+    )
 
 @solara.component
 def AccountsView():
