@@ -5,7 +5,6 @@ from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 from plaid.model.country_code import CountryCode
-from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
 import os
 import pandas as pd
 import plotly.express as px
@@ -14,161 +13,186 @@ import solara.lab
 
 load_dotenv()
 
-# Plaid Setup
+# --- CONFIG & STATE ---
 PLAID_CLIENT_ID = os.environ.get('PLAID_CLIENT_ID')
 PLAID_SECRET = os.environ.get('PLAID_SECRET')
-PLAID_ENV = os.environ.get('PLAID_ENV', 'sandbox')
 
-# Configuration
-plaid_host = plaid.Environment.Sandbox
-if PLAID_ENV == 'development':
-    plaid_host = plaid.Environment.Development
-elif PLAID_ENV == 'production':
-    plaid_host = plaid.Environment.Production
-
-configuration = plaid.Configuration(
-    host=plaid_host,
-    api_key={
-        'clientId': PLAID_CLIENT_ID,
-        'secret': PLAID_SECRET,
-    }
-)
-api_client = plaid.ApiClient(configuration)
-client = plaid_api.PlaidApi(api_client)
-
-# App State
 active_view = solara.reactive("dashboard")
-access_tokens = solara.reactive([])
 accounts_data = solara.reactive([
-    {"name": "BoA Checking", "type": "Checking", "balance": 12450.50, "bank": "Bank of America"},
-    {"name": "SoFi Savings", "type": "Savings", "balance": 45200.00, "bank": "SoFi"},
-    {"name": "Schwab Brokerage", "type": "Investment", "balance": 89300.25, "bank": "Charles Schwab"},
+    {"name": "BoA Checking", "type": "Checking", "balance": 12450.50, "bank": "Bank of America", "change": "+2.4%"},
+    {"name": "SoFi Savings", "type": "Savings", "balance": 45200.00, "bank": "SoFi", "change": "+0.1%"},
+    {"name": "Schwab Brokerage", "type": "Investment", "balance": 89300.25, "bank": "Charles Schwab", "change": "+5.8%"},
 ])
+
+# --- COMPONENTS ---
 
 @solara.component
 def Sidebar():
-    with solara.Column(classes=["sidebar"], style={"width": "250px", "background-color": "#111", "height": "100vh", "padding": "20px", "color": "white"}):
-        solara.Text("VAULT", style={"font-family": "Inter", "font-style": "italic", "color": "#6366f1", "font-size": "24px", "font-weight": "800"})
+    with solara.Column(classes=["sidebar"], style={
+        "width": "280px", 
+        "background-color": "#0a0a0a", 
+        "height": "100vh", 
+        "padding": "40px 24px", 
+        "color": "white",
+        "border-right": "1px solid rgba(255,255,255,0.05)"
+    }):
+        with solara.Row(style={"align-items": "center", "gap": "12px", "margin-bottom": "60px"}):
+            solara.HTML(tag="div", style={"width": "32px", "height": "32px", "background": "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", "border-radius": "8px"})
+            solara.Text("VAULT", style={"font-size": "20px", "font-weight": "800", "letter-spacing": "-1px"})
         
-        with solara.Column(gap="10px", style={"margin-top": "40px"}):
-            solara.Button("Dashboard", on_click=lambda: active_view.set("dashboard"), text=True, style={"color": "white" if active_view.value == "dashboard" else "#888"})
-            solara.Button("Accounts", on_click=lambda: active_view.set("accounts"), text=True, style={"color": "white" if active_view.value == "accounts" else "#888"})
-            solara.Button("Insights", on_click=lambda: active_view.set("insights"), text=True, style={"color": "white" if active_view.value == "insights" else "#888"})
+        with solara.Column(gap="8px"):
+            nav_items = [
+                ("dashboard", "Dashboard"),
+                ("accounts", "Accounts"),
+                ("insights", "Insights"),
+                ("settings", "Settings")
+            ]
+            for view_id, label in nav_items:
+                is_active = active_view.value == view_id
+                bg_color = "rgba(255,255,255,0.05)" if is_active else "transparent"
+                text_color = "white" if is_active else "rgba(255,255,255,0.4)"
+                
+                with solara.Row(style={
+                    "background-color": bg_color, 
+                    "padding": "12px 16px", 
+                    "border-radius": "12px",
+                    "cursor": "pointer",
+                    "transition": "all 0.2s"
+                }, on_click=lambda v=view_id: active_view.set(v)):
+                    solara.Text(label, style={"font-weight": "600", "font-size": "14px", "color": text_color})
+
+@solara.component
+def MetricCard(title, value, subtitle=None, trend=None):
+    with solara.Column(style={
+        "background": "rgba(255,255,255,0.03)", 
+        "padding": "24px", 
+        "border-radius": "24px", 
+        "border": "1px solid rgba(255,255,255,0.05)",
+        "flex": "1",
+        "min-width": "300px"
+    }):
+        solara.Text(title.upper(), style={"font-size": "10px", "color": "rgba(255,255,255,0.4)", "font-weight": "700", "letter-spacing": "1.5px"})
+        solara.Text(value, style={"font-size": "32px", "font-weight": "800", "margin": "8px 0"})
+        with solara.Row(justify="space-between"):
+            if subtitle:
+                solara.Text(subtitle, style={"font-size": "12px", "color": "rgba(255,255,255,0.3)"})
+            if trend:
+                solara.Text(trend, style={"font-size": "12px", "color": "#4ade80" if "+" in trend else "#f87171", "font-weight": "700"})
 
 @solara.component
 def DashboardView():
     df = pd.DataFrame(accounts_data.value)
     total_net_worth = df['balance'].sum()
     
-    with solara.Column(gap="20px", style={"padding": "40px", "width": "100%"}):
-        with solara.Column():
-            solara.Text("GLOBAL DASHBOARD", style={"font-size": "10px", "letter-spacing": "2px", "color": "#666"})
-            solara.Text(f"${total_net_worth:,.2f}", style={"font-size": "48px", "margin": "0", "font-style": "italic", "font-weight": "800"})
+    with solara.Column(gap="32px", style={"padding": "48px", "width": "100%", "max-width": "1200px"}):
+        with solara.Column(gap="4px"):
+            solara.Text("Welcome back,", style={"font-size": "14px", "color": "rgba(255,255,255,0.5)"})
+            solara.Text("Strategic Overview", style={"font-size": "32px", "font-weight": "800", "letter-spacing": "-1px"})
+
+        with solara.Row(gap="24px", style={"width": "100%"}):
+            MetricCard("Net Worth", f"${total_net_worth:,.2f}", "Integrated Balances", "+4.2%")
+            MetricCard("Liquid Assets", f"${(total_net_worth * 0.4):,.2f}", "Cash & Equivalents", "+1.1%")
+            MetricCard("Investments", f"${(total_net_worth * 0.6):,.2f}", "Market Value", "+6.8%")
         
-        with solara.Row(gap="20px"):
-            fig = px.pie(df, values='balance', names='bank', title='Allocation by Bank', hole=.4)
-            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color="white", title_font_color="white")
-            solara.FigurePlotly(fig)
-
-@solara.component
-def PlaidLink(on_success_callback):
-    link_token, set_link_token = solara.use_state(None)
-    
-    def fetch_token():
-        if not PLAID_CLIENT_ID or not PLAID_SECRET:
-            print("Plaid Keys missing!")
-            return
-        try:
-            request = LinkTokenCreateRequest(
-                products=[Products("transactions")],
-                user=LinkTokenCreateRequestUser(client_user_id="user-id"),
-                client_name="Vault",
-                language="en",
-                country_codes=[CountryCode("US")],
-            )
-            response = client.link_token_create(request)
-            set_link_token(response['link_token'])
-        except Exception as e:
-            print(f"Error creating link token: {e}")
-
-    solara.use_effect(fetch_token, [])
-
-    return solara.Div(
-        children=[
-            solara.HTML(tag="script", unsafe_html=f"""
-                (function() {{
-                    const token = '{link_token}';
-                    if (!token) return;
-                    const loadPlaid = () => {{
-                        const handler = Plaid.create({{
-                            token: token,
-                            onSuccess: (pt, md) => {{ console.log('Plaid Success'); }},
-                        }});
-                        handler.open();
-                    }};
-                    if (!window.Plaid) {{
-                        const s = document.createElement('script');
-                        s.src = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
-                        s.onload = loadPlaid;
-                        document.head.appendChild(s);
-                    }} else {{ loadPlaid(); }}
-                }})();
-            """)
-        ] if link_token else []
-    )
+        with solara.Row(gap="32px", style={"width": "100%"}):
+            # Allocation Chart
+            with solara.Column(style={"flex": "2", "background": "rgba(255,255,255,0.02)", "padding": "32px", "border-radius": "32px", "border": "1px solid rgba(255,255,255,0.05)"}):
+                solara.Text("Asset Allocation", style={"font-size": "16px", "font-weight": "700", "margin-bottom": "24px"})
+                fig = px.pie(df, values='balance', names='bank', hole=.7, color_discrete_sequence=['#6366f1', '#a855f7', '#ec4899'])
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', 
+                    plot_bgcolor='rgba(0,0,0,0)', 
+                    font_color="white", 
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5)
+                )
+                solara.FigurePlotly(fig)
+            
+            # Recent Activity / Insights
+            with solara.Column(style={"flex": "1", "background": "rgba(255,255,255,0.02)", "padding": "32px", "border-radius": "32px", "border": "1px solid rgba(255,255,255,0.05)"}):
+                solara.Text("Vault Insights", style={"font-size": "16px", "font-weight": "700", "margin-bottom": "24px"})
+                insights = [
+                    ("Yield Optimization", "Move $5k to SoFi for 4.6% APY"),
+                    ("Diversification", "Schwab allocation is > 60%"),
+                    ("Tax Efficiency", "Harvest losses in Brokerage")
+                ]
+                for title, desc in insights:
+                    with solara.Column(style={"margin-bottom": "20px", "padding": "16px", "background": "rgba(255,255,255,0.03)", "border-radius": "16px"}):
+                        solara.Text(title, style={"font-size": "13px", "font-weight": "700", "color": "#818cf8"})
+                        solara.Text(desc, style={"font-size": "12px", "color": "rgba(255,255,255,0.5)", "margin-top": "4px"})
 
 @solara.component
 def AccountsView():
-    show_link, set_show_link = solara.use_state(False)
-    
-    with solara.Column(gap="20px", style={"padding": "40px", "width": "100%"}):
-        with solara.Row(justify="space-between", style={"align-items": "center"}):
-            solara.Text("Connected Portfolio", style={"font-size": "24px", "font-weight": "bold"})
-            solara.Button("Connect via Plaid", on_click=lambda: set_show_link(True), color="primary", style={"background-color": "#6366f1"})
-        
-        if show_link:
-            PlaidLink(lambda: set_show_link(False))
+    with solara.Column(gap="32px", style={"padding": "48px", "width": "100%", "max-width": "1200px"}):
+        with solara.Row(justify="space-between", style={"align-items": "end"}):
+            with solara.Column(gap="4px"):
+                solara.Text("Portfolio Management", style={"font-size": "32px", "font-weight": "800", "letter-spacing": "-1px"})
+                solara.Text("All linked bank and brokerage accounts", style={"font-size": "14px", "color": "rgba(255,255,255,0.5)"})
+            solara.Button("Connect New Account", color="primary", style={"background": "#6366f1", "padding": "12px 24px", "border-radius": "12px"})
 
-        if not access_tokens.value:
-            with solara.Column(style={"background": "rgba(255,255,255,0.02)", "padding": "40px", "border-radius": "18px", "border": "1px dashed rgba(255,255,255,0.1)", "text-align": "center"}):
-                solara.Text("NO LIVE SYNC ACTIVE", style={"font-size": "12px", "color": "#666", "letter-spacing": "2px"})
-                solara.Text("Connect Plaid to see real-time balances from BoA, Schwab, and SoFi.", style={"color": "#444", "margin-top": "10px"})
-
-        with solara.Row(gap="20px", style={"flex-wrap": "wrap"}):
+        with solara.Row(gap="24px", style={"flex-wrap": "wrap"}):
             for acc in accounts_data.value:
-                with solara.Column(style={"background": "rgba(255,255,255,0.03)", "padding": "25px", "border-radius": "18px", "min-width": "280px", "border": "1px solid rgba(255,255,255,0.05)", "backdrop-filter": "blur(10px)"}):
-                    solara.Text(acc['bank'].upper(), style={"font-size": "9px", "color": "#818cf8", "font-weight": "800", "letter-spacing": "1.5px"})
-                    solara.Text(acc['name'], style={"font-size": "20px", "margin": "12px 0", "font-weight": "500"})
-                    solara.Text(f"${acc['balance']:,.2f}", style={"font-size": "28px", "font-weight": "700", "color": "white"})
+                with solara.Column(style={
+                    "background": "rgba(255,255,255,0.03)", 
+                    "padding": "32px", 
+                    "border-radius": "32px", 
+                    "min-width": "340px", 
+                    "border": "1px solid rgba(255,255,255,0.05)",
+                    "box-shadow": "0 20px 50px rgba(0,0,0,0.2)"
+                }):
+                    with solara.Row(justify="space-between", style={"width": "100%"}):
+                        solara.Text(acc['bank'].upper(), style={"font-size": "10px", "color": "#6366f1", "font-weight": "800", "letter-spacing": "1.5px"})
+                        solara.Text("ACTIVE", style={"font-size": "9px", "color": "#4ade80", "font-weight": "900"})
                     
-                    with solara.Row(justify="space-between", style={"margin-top": "20px", "border-top": "1px solid rgba(255,255,255,0.05)", "padding-top": "15px"}):
-                        solara.Text("SYNCED", style={"font-size": "9px", "color": "#4ade80", "font-weight": "bold"})
-                        solara.Text("ASSET CLASS • USD", style={"font-size": "9px", "color": "#444"})
+                    solara.Text(acc['name'], style={"font-size": "22px", "font-weight": "600", "margin": "16px 0"})
+                    
+                    with solara.Row(justify="space-between", style={"align-items": "end"}):
+                        solara.Text(f"${acc['balance']:,.2f}", style={"font-size": "32px", "font-weight": "800"})
+                        solara.Text(acc['change'], style={"font-size": "12px", "color": "#4ade80", "font-weight": "700", "margin-bottom": "6px"})
+                    
+                    solara.HTML(tag="div", style={
+                        "height": "1px", 
+                        "background": "rgba(255,255,255,0.05)", 
+                        "margin": "24px 0"
+                    })
+                    
+                    with solara.Row(justify="space-between"):
+                        solara.Text("SYNCED 2M AGO", style={"font-size": "9px", "color": "rgba(255,255,255,0.2)"})
+                        solara.Text(acc['type'].upper(), style={"font-size": "9px", "color": "rgba(255,255,255,0.2)"})
 
 @solara.component
 def Page():
     solara.Style("""
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
         body { 
-            background-color: #050505; 
-            color: white; 
-            font-family: 'Inter', sans-serif; 
+            background-color: #050505 !important; 
+            color: white !important; 
+            font-family: 'Inter', sans-serif !important; 
             margin: 0; 
-            background-image: radial-gradient(circle at 50% -20%, #1e1b4b 0%, #050505 50%);
-            background-attachment: fixed;
+            overflow-x: hidden;
         }
-        .sidebar { border-right: 1px solid rgba(255,255,255,0.05); }
-        button { border-radius: 12px !important; text-transform: uppercase !important; letter-spacing: 1px !important; font-size: 11px !important; font-weight: 700 !important; }
+        
+        /* Custom scrollbar for that premium feel */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #050505; }
+        ::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #222; }
+
+        .solara-content-main { background: transparent !important; }
+        footer { display: none !important; }
     """)
     
-    with solara.Row(style={"min-height": "100vh"}):
+    with solara.Row(style={"min-height": "100vh", "background": "#050505"}):
         Sidebar()
-        with solara.Column(style={"flex": "1"}):
+        with solara.Column(style={"flex": "1", "height": "100vh", "overflow-y": "auto", "background": "radial-gradient(circle at 50% 0%, #111 0%, #050505 100%)"}):
             if active_view.value == "dashboard":
                 DashboardView()
             elif active_view.value == "accounts":
                 AccountsView()
             else:
-                solara.Text("Insights coming soon...")
+                with solara.Column(style={"padding": "48px"}):
+                    solara.Text("Functional Module coming soon.", style={"color": "rgba(255,255,255,0.2)"})
 
 app = Page()
