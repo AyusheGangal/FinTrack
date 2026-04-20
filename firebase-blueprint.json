@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "Financial account information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["checking", "savings", "credit", "loan", "retirement", "hsa"] },
+        "balance": { "type": "number" },
+        "currency": { "type": "string" },
+        "userId": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "balance", "userId"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record",
+      "type": "object",
+      "properties": {
+        "accountId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["inflow", "outflow"] },
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["accountId", "amount", "type", "date", "userId"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly spending budget",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string" },
+        "limit": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["category", "limit", "userId"]
+    },
+    "Reminder": {
+      "title": "Reminder",
+      "description": "Payment reminder for loans or credit cards",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "amount": { "type": "number" },
+        "userId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "paid"] }
+      },
+      "required": ["name", "dueDate", "userId"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "Public user profile information",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "userId": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "User financial accounts"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Transaction logs"
+    },
+    "/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "Spending limits"
+    },
+    "/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Payment notifications"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    }
+  }
+}

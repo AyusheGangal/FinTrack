@@ -1,0 +1,112 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidAccount(data) {
+      return data.keys().hasAll(['name', 'type', 'balance', 'userId']) &&
+             data.keys().size() <= 6 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 50 &&
+             data.type in ['checking', 'savings', 'credit', 'loan', 'retirement', 'hsa'] &&
+             data.balance is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['accountId', 'amount', 'type', 'date', 'userId']) &&
+             data.keys().size() <= 7 &&
+             data.accountId is string &&
+             data.amount is number &&
+             data.type in ['inflow', 'outflow'] &&
+             data.date is string && // Assuming ISO string for date in this simple validation
+             data.userId == request.auth.uid;
+    }
+
+    function isValidBudget(data) {
+      return data.keys().hasAll(['category', 'limit', 'userId']) &&
+             data.keys().size() == 3 &&
+             data.category is string &&
+             data.limit is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidReminder(data) {
+      return data.keys().hasAll(['name', 'dueDate', 'userId']) &&
+             data.keys().size() <= 5 &&
+             data.name is string &&
+             data.dueDate is string &&
+             data.userId == request.auth.uid;
+    }
+
+    // --- Match Blocks ---
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+    }
+
+    match /accounts/{accountId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAccount(incoming()) && isValidId(accountId);
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                      isValidAccount(incoming()) &&
+                      incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /transactions/{transactionId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransaction(incoming()) && isValidId(transactionId);
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                      isValidTransaction(incoming()) &&
+                      incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /budgets/{budgetId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidBudget(incoming()) && isValidId(budgetId);
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                      isValidBudget(incoming()) &&
+                      incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    match /reminders/{reminderId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidReminder(incoming()) && isValidId(reminderId);
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                      isValidReminder(incoming()) &&
+                      incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+  }
+}
